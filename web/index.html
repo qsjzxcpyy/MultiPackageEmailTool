@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f6f4">
+  <title>多包裹邮件处理台</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-lockup">
+      <span class="brand-mark" aria-hidden="true">MP</span>
+      <div>
+        <p class="eyebrow">LOCAL WORKSPACE</p>
+        <h1>多包裹邮件处理台</h1>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <span class="local-badge"><span class="status-dot" aria-hidden="true"></span>127.0.0.1 · 仅本机处理</span>
+      <button class="button button-quiet" id="reset-button" type="button"><span aria-hidden="true">↺</span> 重新开始</button>
+    </div>
+  </header>
+
+  <main class="app-shell">
+    <aside class="workflow-rail" aria-label="处理步骤">
+      <div class="rail-heading">
+        <span class="eyebrow">RUNBOOK 01</span>
+        <h2>处理流程</h2>
+      </div>
+      <ol class="stage-list">
+        <li class="stage-item is-active" data-stage="cloud">
+          <span class="stage-number">01</span>
+          <div><strong>上传云仓文件</strong><small>识别多包裹订单</small></div>
+        </li>
+        <li class="stage-item" data-stage="order-list">
+          <span class="stage-number">02</span>
+          <div><strong>下载 ERP 订单号</strong><small>去重后的订单清单</small></div>
+        </li>
+        <li class="stage-item is-locked" data-stage="erp">
+          <span class="stage-number">03</span>
+          <div><strong>上传 ERP 文件</strong><small>匹配邮箱与邮件内容</small></div>
+        </li>
+        <li class="stage-item is-locked" data-stage="result">
+          <span class="stage-number">04</span>
+          <div><strong>查看结果</strong><small>下载发送表与复核表</small></div>
+        </li>
+      </ol>
+      <div class="rail-note">
+        <span class="note-label">OUTPUT CONTRACT</span>
+        <p>最终发送表保持三列：收件邮箱、邮件内容、发件邮箱。</p>
+      </div>
+    </aside>
+
+    <section class="workspace" aria-label="多包裹邮件工作区">
+      <div class="workspace-heading">
+        <div>
+          <p class="eyebrow">ORDER OPERATIONS / 2026-08-27</p>
+          <h2>从订单记录到可发送 Excel</h2>
+        </div>
+        <span class="run-state" id="run-state">等待云仓文件</span>
+      </div>
+
+      <div class="message-stack">
+        <div class="message message-status" id="status-message" role="status" aria-live="polite" hidden></div>
+        <div class="message message-error" id="error-message" role="alert" hidden></div>
+      </div>
+
+      <section class="stage-panel" id="cloud-stage" aria-labelledby="cloud-title">
+        <div class="panel-heading">
+          <div class="heading-index">01</div>
+          <div><p class="eyebrow">SOURCE / CLOUD WAREHOUSE</p><h3 id="cloud-title">上传云仓文件</h3></div>
+          <span class="panel-state" id="cloud-state">待处理</span>
+        </div>
+        <p class="panel-copy">上传原始的 <strong>.xlsx</strong> 订单记录，系统会聚合订单、去重物流号，并筛选多包裹订单。</p>
+        <div class="upload-row">
+          <label class="file-picker" for="cloud-file">
+            <span class="file-icon" aria-hidden="true">XLSX</span>
+            <span><strong id="cloud-file-name">未选择文件</strong><small>仅支持 .xlsx，最大 50 MB</small></span>
+            <input id="cloud-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+          </label>
+          <button class="button button-primary" id="cloud-upload-button" type="button" disabled>处理云仓文件</button>
+        </div>
+        <div class="cloud-output" id="cloud-output" hidden>
+          <div class="stats-grid" id="cloud-stats" aria-label="云仓统计"></div>
+          <div class="output-toolbar">
+            <div><p class="eyebrow">PREVIEW</p><h4>多包裹订单预览</h4></div>
+            <div class="toolbar-controls">
+              <button class="button button-secondary copy-orders-button" id="cloud-copy-orders-button" type="button" disabled>一键复制订单号</button>
+              <label class="filter-box" for="cloud-source-filter"><span>来源</span><select id="cloud-source-filter"><option value="">全部来源</option></select></label>
+              <span class="row-count" id="cloud-row-count"></span>
+            </div>
+          </div>
+          <div class="table-wrap" id="cloud-table-wrap"></div>
+        </div>
+      </section>
+
+      <section class="stage-panel stage-panel-muted" id="order-list-stage" aria-labelledby="order-list-title">
+        <div class="panel-heading">
+          <div class="heading-index">02</div>
+          <div><p class="eyebrow">HANDOFF / ERP</p><h3 id="order-list-title">下载 ERP 订单号</h3></div>
+          <span class="panel-state" id="order-list-state">等待上一步</span>
+        </div>
+        <p class="panel-copy">使用这份去重后的订单号清单，从 ERP 手动下载包含邮箱信息的记录。</p>
+        <button class="button button-secondary download-button" id="erp-order-list-download" type="button" disabled>下载 ERP 订单号.xlsx</button>
+      </section>
+
+      <section class="stage-panel stage-panel-muted" id="erp-stage" aria-labelledby="erp-title" aria-disabled="true">
+        <div class="panel-heading">
+          <div class="heading-index">03</div>
+          <div><p class="eyebrow">SOURCE / ERP EXPORT</p><h3 id="erp-title">上传 ERP 文件</h3></div>
+          <span class="panel-state" id="erp-state">锁定</span>
+        </div>
+        <p class="panel-copy">上传你从 ERP 手动下载的订单记录，系统按订单号精确匹配邮箱。</p>
+        <div class="upload-row">
+          <label class="file-picker" for="erp-file">
+            <span class="file-icon" aria-hidden="true">XLSX</span>
+            <span><strong id="erp-file-name">未选择文件</strong><small>必须先完成云仓文件处理，最多选择 2 个</small></span>
+            <input id="erp-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple disabled>
+          </label>
+          <button class="button button-primary" id="erp-upload-button" type="button" disabled>匹配 ERP 文件</button>
+        </div>
+      </section>
+
+      <section class="stage-panel stage-panel-muted" id="result-stage" aria-labelledby="result-title" aria-disabled="true">
+        <div class="panel-heading">
+          <div class="heading-index">04</div>
+          <div><p class="eyebrow">OUTPUT / REVIEW</p><h3 id="result-title">查看结果</h3></div>
+          <span class="panel-state" id="result-state">锁定</span>
+        </div>
+        <div class="result-output" id="result-output" hidden>
+          <div class="stats-grid result-stats" id="result-stats" aria-label="匹配统计"></div>
+          <div class="download-strip">
+            <button class="button button-secondary download-button" id="final-download" type="button" disabled>下载发邮件最终数据.xlsx</button>
+            <button class="button button-review download-button" id="review-download" type="button" disabled>下载人工复核表.xlsx</button>
+          </div>
+          <div class="output-toolbar result-toolbar">
+            <div><p class="eyebrow">RECORDS</p><h4 id="result-list-title">可发送记录</h4></div>
+            <span class="row-count" id="result-row-count"></span>
+            <div class="toolbar-controls">
+              <label class="filter-box" for="result-source-filter"><span>来源</span><select id="result-source-filter"><option value="">全部来源</option></select></label>
+              <label class="search-box" for="result-search"><span aria-hidden="true">⌕</span><input id="result-search" type="search" placeholder="搜索订单号、邮箱、物流号或原因" autocomplete="off"></label>
+              <div class="segmented-control" role="tablist" aria-label="结果类型">
+                <button class="segment is-selected" id="sendable-tab" type="button" role="tab" aria-selected="true">可发送 <span id="sendable-tab-count">0</span></button>
+                <button class="segment" id="review-tab" type="button" role="tab" aria-selected="false">人工复核 <span id="review-tab-count">0</span></button>
+              </div>
+            </div>
+          </div>
+          <div class="table-wrap" id="result-table-wrap"></div>
+        </div>
+      </section>
+
+      <footer class="workspace-footer"><span>本地处理 · 不连接云仓、ERP 或邮箱服务</span><span>发件邮箱按订单来源自动匹配</span></footer>
+    </section>
+  </main>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
