@@ -86,6 +86,7 @@
           <div class="output-toolbar">
             <div><p class="eyebrow">PREVIEW</p><h4>多包裹订单预览</h4></div>
             <div class="toolbar-controls">
+              <button class="button button-quiet list-toggle-button" id="cloud-list-toggle-button" type="button" aria-expanded="true" aria-controls="cloud-table-wrap">折叠订单列表</button>
               <button class="button button-secondary copy-orders-button" id="cloud-copy-orders-button" type="button" disabled>一键复制订单号</button>
               <label class="filter-box" for="cloud-source-filter"><span>来源</span><select id="cloud-source-filter"><option value="">全部来源</option></select></label>
               <span class="row-count" id="cloud-row-count"></span>
@@ -138,6 +139,7 @@
             <div><p class="eyebrow">RECORDS</p><h4 id="result-list-title">可发送记录</h4></div>
             <span class="row-count" id="result-row-count"></span>
             <div class="toolbar-controls">
+              <button class="button button-quiet list-toggle-button" id="result-list-toggle-button" type="button" aria-expanded="true" aria-controls="result-table-wrap">折叠订单列表</button>
               <label class="filter-box" for="result-source-filter"><span>来源</span><select id="result-source-filter"><option value="">全部来源</option></select></label>
               <label class="search-box" for="result-search"><span aria-hidden="true">⌕</span><input id="result-search" type="search" placeholder="搜索订单号、邮箱、物流号或原因" autocomplete="off"></label>
               <div class="segmented-control" role="tablist" aria-label="结果类型">

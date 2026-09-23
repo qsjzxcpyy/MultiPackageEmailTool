@@ -6,6 +6,7 @@ import {
   filterRows,
   filterRowsBySource,
   getCopySuccessFeedback,
+  getListCollapsePresentation,
   hasDownload,
 } from '../../web/app.js';
 
@@ -58,5 +59,19 @@ test('getCopySuccessFeedback gives the user the copied order count in both feedb
   assert.deepEqual(getCopySuccessFeedback(7), {
     buttonText: '已复制 7 个订单号',
     statusText: '已复制 7 个订单号，可直接粘贴到 ERP。',
+  });
+});
+
+
+test('getListCollapsePresentation keeps the toggle label and aria state in sync', () => {
+  assert.deepEqual(getListCollapsePresentation(false), {
+    hidden: false,
+    buttonText: '折叠订单列表',
+    ariaExpanded: 'true',
+  });
+  assert.deepEqual(getListCollapsePresentation(true), {
+    hidden: true,
+    buttonText: '展开订单列表',
+    ariaExpanded: 'false',
   });
 });
