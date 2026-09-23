@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 import { buildEmailBodyForPreview, run } from './multi_package_email.mjs';
 
-export const APP_VERSION = '20260909-copy-order-feedback';
+export const APP_VERSION = '20260923-collapse-order-lists';
 export function resolvePort({ argv = [], envPort = process.env.PORT } = {}) {
   const portIndex = argv.indexOf('--port');
   const requestedValue = portIndex >= 0 ? argv[portIndex + 1] : (envPort ?? 8787);

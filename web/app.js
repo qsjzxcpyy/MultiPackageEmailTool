@@ -5,6 +5,8 @@ const state = {
   cloudSourceFilter: '',
   resultSourceFilter: '',
   resultMode: 'sendable',
+  cloudListCollapsed: false,
+  resultListCollapsed: false,
 };
 
 const MAX_ERP_FILES = 2;
@@ -47,6 +49,15 @@ export function getCopySuccessFeedback(orderCount) {
   return {
     buttonText: `\u5df2\u590d\u5236 ${count} \u4e2a\u8ba2\u5355\u53f7`,
     statusText: `\u5df2\u590d\u5236 ${count} \u4e2a\u8ba2\u5355\u53f7，\u53ef\u76f4\u63a5\u7c98\u8d34\u5230 ERP\u3002`,
+  };
+}
+
+export function getListCollapsePresentation(collapsed) {
+  const isCollapsed = Boolean(collapsed);
+  return {
+    hidden: isCollapsed,
+    buttonText: isCollapsed ? '展开订单列表' : '折叠订单列表',
+    ariaExpanded: String(!isCollapsed),
   };
 }
 
@@ -286,6 +297,17 @@ async function handleCopyCloudOrders() {
   }
 }
 
+function applyListCollapse(tableSelector, buttonSelector, collapsed) {
+  const table = $(tableSelector);
+  const button = $(buttonSelector);
+  const presentation = getListCollapsePresentation(collapsed);
+  if (!table || !button) return;
+  table.hidden = presentation.hidden;
+  button.textContent = presentation.buttonText;
+  button.setAttribute('aria-expanded', presentation.ariaExpanded);
+  button.setAttribute('aria-label', presentation.buttonText);
+}
+
 function renderCloudRows() {
   if (!state.cloud) return;
   const rows = filterRowsBySource(state.cloud.preview || [], 'source', state.cloudSourceFilter);
@@ -298,6 +320,7 @@ function renderCloudRows() {
     { label: '物流号', key: 'trackingNumbers', format: (row) => row.trackingNumbers.join('\n'), className: 'mono tracking-list' },
     { label: '邮件内容', key: 'emailBody', kind: 'email' },
   ], rows, '没有符合当前来源的多包裹订单。');
+  applyListCollapse('#cloud-table-wrap', '#cloud-list-toggle-button', state.cloudListCollapsed);
 }
 
 function renderResultRows() {
@@ -324,6 +347,7 @@ function renderResultRows() {
     ];
   renderTable($('#result-table-wrap'), columns, filteredRows, state.resultMode === 'review' ? '没有需要人工复核的记录。' : '没有可发送记录。');
   setText('#result-row-count', `${filteredRows.length} 条记录`);
+  applyListCollapse('#result-table-wrap', '#result-list-toggle-button', state.resultListCollapsed);
 }
 
 function renderResult(data) {
@@ -387,6 +411,8 @@ function resetApp() {
   state.cloudSourceFilter = '';
   state.resultSourceFilter = '';
   state.resultMode = 'sendable';
+  state.cloudListCollapsed = false;
+  state.resultListCollapsed = false;
   $('#cloud-file').value = '';
   $('#erp-file').value = '';
   setText('#cloud-file-name', '未选择文件');
@@ -397,6 +423,8 @@ function resetApp() {
   $('#cloud-source-filter').value = '';
   $('#result-source-filter').value = '';
   setCloudCopyButton([]);
+  applyListCollapse('#cloud-table-wrap', '#cloud-list-toggle-button', false);
+  applyListCollapse('#result-table-wrap', '#result-list-toggle-button', false);
   setCloudReady(false);
   setDownload('#erp-order-list-download', '');
   setDownload('#final-download', '');
@@ -474,6 +502,14 @@ if (typeof document !== 'undefined') {
   $('#erp-file').addEventListener('change', (event) => setFileLabel(event.target, '#erp-file-name', '#erp-upload-button'));
   $('#cloud-upload-button').addEventListener('click', handleCloudUpload);
   $('#cloud-copy-orders-button').addEventListener('click', handleCopyCloudOrders);
+  $('#cloud-list-toggle-button').addEventListener('click', () => {
+    state.cloudListCollapsed = !state.cloudListCollapsed;
+    applyListCollapse('#cloud-table-wrap', '#cloud-list-toggle-button', state.cloudListCollapsed);
+  });
+  $('#result-list-toggle-button').addEventListener('click', () => {
+    state.resultListCollapsed = !state.resultListCollapsed;
+    applyListCollapse('#result-table-wrap', '#result-list-toggle-button', state.resultListCollapsed);
+  });
   $('#erp-upload-button').addEventListener('click', handleErpUpload);
   $('#reset-button').addEventListener('click', resetApp);
   $('#result-search').addEventListener('input', renderResultRows);
