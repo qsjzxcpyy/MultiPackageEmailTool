@@ -82,8 +82,10 @@ export function aggregateMultiPackageOrders(rows) {
       });
     }
     const group = grouped.get(order);
-    const carrier = canonicalCarrier(row.carrier);
-    if (carrier && !group.carriers.includes(carrier)) group.carriers.push(carrier);
+    const carriers = text(row.carrier).split(/\r?\n/).map(canonicalCarrier);
+    for (const carrier of carriers) {
+      if (carrier && !group.carriers.includes(carrier)) group.carriers.push(carrier);
+    }
     const seller = text(row.seller);
     if (seller && !group.sellers.includes(seller)) group.sellers.push(seller);
     const shipFrom = text(row.shipFrom);
@@ -95,12 +97,21 @@ export function aggregateMultiPackageOrders(rows) {
       }
       continue;
     }
-    let trackingGroup = group.trackingGroups.find((item) => item.carrier === carrier);
-    if (!trackingGroup) {
-      trackingGroup = { carrier, trackingNumbers: [] };
-      group.trackingGroups.push(trackingGroup);
+    // A single carrier applies to every tracking number; multiline carriers
+    // correspond to tracking numbers on the same lines of the warehouse export.
+    const carrierCountMatches = carriers.length === 1 || carriers.length === trackingNumbers.length;
+    if (!carrierCountMatches && !group.issues.includes('CARRIER_TRACKING_COUNT_MISMATCH')) {
+      group.issues.push('CARRIER_TRACKING_COUNT_MISMATCH');
     }
-    for (const tracking of trackingNumbers) {
+    for (const [index, tracking] of trackingNumbers.entries()) {
+      const carrier = carrierCountMatches
+        ? carriers[carriers.length === 1 ? 0 : index]
+        : canonicalCarrier(row.carrier);
+      let trackingGroup = group.trackingGroups.find((item) => item.carrier === carrier);
+      if (!trackingGroup) {
+        trackingGroup = { carrier, trackingNumbers: [] };
+        group.trackingGroups.push(trackingGroup);
+      }
       if (!group.trackingNumbers.includes(tracking)) group.trackingNumbers.push(tracking);
       if (!trackingGroup.trackingNumbers.includes(tracking)) {
         trackingGroup.trackingNumbers.push(tracking);

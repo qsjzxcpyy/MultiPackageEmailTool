@@ -22,7 +22,7 @@ import {
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const cloudFixture = path.join(projectRoot, 'Drop Shipping Order List20260825203710.xlsx');
 const finalTemplateFixture = path.join(projectRoot, '发邮件8.17-1.xlsx');
-const templateFixture = path.join(projectRoot, '8月25多包裹', 'Drop Shipping Order List20260825003315.xlsx');
+const templateFixture = path.join(projectRoot, 'MultiPackageEmailTool', 'Drop Shipping Order List20260825003315.xlsx');
 const currentCloudFixture = path.join(projectRoot, '8月28-29推单多包裹', 'Drop Shipping Order List20260831000608.xlsx');
 const currentErpFixture = path.join(projectRoot, '8月28-29推单多包裹', 'order-1788160744.xlsx');
 
@@ -243,6 +243,82 @@ test('final workbook extends the template with matching styles beyond its reserv
   assert.equal(outputLayout.rows.length, 196);
   assert.equal(outputLayout.rows.at(-1).attrs.ht, '15');
   assert.deepEqual(outputLayout.rows.at(-1).cells.map((cell) => cell.s), [undefined, '1', '2']);
+});
+
+test('matches newline-separated Fedex and UPS cells using the requested email template', () => {
+  const order = '111-6527972-5250633';
+  const orders = aggregateMultiPackageOrders([{
+    order,
+    shipFrom: 'XOCN_US',
+    carrier: 'Fedex\nUPS',
+    tracking: '878638772615\n1ZXH37840336535025',
+  }]);
+  assert.deepEqual(orders[0].trackingGroups, [
+    { carrier: 'Fedex', trackingNumbers: ['878638772615'] },
+    { carrier: 'UPS', trackingNumbers: ['1ZXH37840336535025'] },
+  ]);
+  const result = matchOrdersToEmails(orders, [{
+    order, email: '1fq23hfwqpl0ys6@marketplace.amazon.com',
+  }]);
+  assert.deepEqual(result.review, []);
+  assert.equal(result.sendable.length, 1);
+  assert.equal(result.sendable[0][SENDER], '15889560452@163.com');
+  assert.equal(result.sendable[0][BODY],
+    'Hi! Your order  111-6527972-5250633 will be delivered in multiple different packages.\n' +
+    'Fedex tracking numbers are:\n878638772615\n' +
+    'UPS tracking numbers are:\n1ZXH37840336535025\n' +
+    'Please wait for all the packages to arrive (may arrive separately)\n' +
+    'Warmest Regards\nQuentin');
+});
+
+test('pairs multiline carriers by position and merges repeated carriers and tracking numbers', () => {
+  const orders = aggregateMultiPackageOrders([
+    { order: 'MIXED', carrier: ' ups \r\n FEDEX \r\n fedex ',
+      tracking: '1ZFIRST\r\n878638772615\r\n878638772616' },
+    { order: 'MIXED', carrier: 'Fedex', tracking: '878638772615\n878638772617' },
+  ]);
+  assert.equal(orders[0].carrier, 'UPS / Fedex');
+  assert.deepEqual(orders[0].trackingNumbers,
+    ['1ZFIRST', '878638772615', '878638772616', '878638772617']);
+  assert.deepEqual(orders[0].trackingGroups, [
+    { carrier: 'UPS', trackingNumbers: ['1ZFIRST'] },
+    { carrier: 'Fedex', trackingNumbers: ['878638772615', '878638772616', '878638772617'] },
+  ]);
+});
+
+test('keeps mismatched multiline carrier counts and unsupported carriers in manual review', () => {
+  for (const carrier of ['Fedex\nUPS', 'Fedex\nDHL\nUPS']) {
+    const orders = aggregateMultiPackageOrders([{
+      order: 'REVIEW', shipFrom: 'XOCN_US', carrier,
+      tracking: '878638772615\nUNKNOWN\n1ZXH37840336535025',
+    }]);
+    const result = matchOrdersToEmails(orders, [{ order: 'REVIEW', email: 'buyer@example.com' }]);
+    assert.equal(result.sendable.length, 0);
+    assert.equal(result.review.length, 1);
+    assert.equal(result.review[0]['\u539f\u56e0'], carrier === 'Fedex\nUPS'
+      ? 'CARRIER_TRACKING_COUNT_MISMATCH' : 'CARRIER_CONFLICT_OR_UNSUPPORTED');
+    assert.equal(result.review[0]['\u7269\u6d41\u53f7\u5217\u8868'], '878638772615\nUNKNOWN\n1ZXH37840336535025');
+  }
+});
+
+test('October 14 warehouse and ERP exports include the mixed-carrier order in the final workbook', async (t) => {
+  const outDir = await fs.mkdtemp(path.join(os.tmpdir(), 'multi-package-oct14-test-'));
+  t.after(() => fs.rm(outDir, { recursive: true, force: true }));
+  const result = await run({
+    source: path.join(projectRoot, '10\u670814\u63a8\u5355\u591a\u5305\u88f9', 'Drop Shipping Order List20261014232047.xlsx'),
+    erp: path.join(projectRoot, '10\u670814\u63a8\u5355\u591a\u5305\u88f9', 'order-1792046129.xlsx'),
+    outDir,
+  });
+  assert.equal(result.orders.length, 27);
+  assert.equal(result.sendable.length, 27);
+  assert.deepEqual(result.review, []);
+  const workbook = await SpreadsheetFile.importXlsx(await FileBlob.load(result.finalPath));
+  const rows = workbook.worksheets.getItem('Sheet1').getUsedRange().values;
+  const target = rows.find((row) => row[0] === '1fq23hfwqpl0ys6@marketplace.amazon.com');
+  assert.ok(target);
+  assert.equal(target[1], result.sendable.find((row) => row[ORDER] === '111-6527972-5250633')[BODY]);
+  assert.equal(target[2], '15889560452@163.com');
+  assert.match(target[1], /Fedex tracking numbers are:\n878638772615\nUPS tracking numbers are:\n1ZXH37840336535025/);
 });
 
 test('aggregates repeated order rows and removes duplicate tracking numbers', () => {
