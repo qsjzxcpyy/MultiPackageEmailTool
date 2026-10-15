@@ -50,7 +50,7 @@ test('health endpoint reports the local service', async (t) => {
   assert.deepEqual(await response.json(), {
     ok: true,
     stage: 'idle',
-    version: '20260923-collapse-order-lists',
+    version: '20261015-multiline-carriers',
   });
 });
 

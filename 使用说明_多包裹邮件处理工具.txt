@@ -24,3 +24,7 @@
 关闭服务窗口后，本轮上传到临时目录的文件会清理。
 最终发送表固定为：收件邮箱、邮件内容、发件邮箱。
 发件邮箱按订单来源自动匹配：DEMOC_US 使用 democ@example.invalid；DEMOD_US 使用 demod@example.invalid；DEMOB_US 使用 demob@example.invalid；DEMOA_US_US 使用 demoa@example.invalid。
+
+五、混合承运商多包裹（2026-10-15 更新）
+支持 Fedex、UPS 分别记录在不同行，也支持在同一承运商单元格内换行填写，并与物流号单元格中的各行一一对应。邮件会按承运商分段列出对应物流号，沿用原模板。
+一个承运商可以对应多个物流号；多个承运商必须与物流号数量一致，否则进入人工复核，原因为 CARRIER_TRACKING_COUNT_MISMATCH。不支持的承运商仍进入人工复核。
