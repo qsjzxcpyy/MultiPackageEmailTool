@@ -19,10 +19,10 @@ import {
   run,
 } from '../../multi_package_email.mjs';
 
-const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const cloudFixture = path.join(projectRoot, 'Drop Shipping Order List20260825203710.xlsx');
 const finalTemplateFixture = path.join(projectRoot, '发邮件8.17-1.xlsx');
-const templateFixture = path.join(projectRoot, 'MultiPackageEmailTool', 'Drop Shipping Order List20260825003315.xlsx');
+const templateFixture = path.join(projectRoot, 'Drop Shipping Order List20260825003315.xlsx');
 const currentCloudFixture = path.join(projectRoot, '8月28-29推单多包裹', 'Drop Shipping Order List20260831000608.xlsx');
 const currentErpFixture = path.join(projectRoot, '8月28-29推单多包裹', 'order-1788160744.xlsx');
 
@@ -31,7 +31,8 @@ const RECIPIENT = '\u6536\u4ef6\u90ae\u7bb1';
 const BODY = '\u90ae\u4ef6\u5185\u5bb9';
 const SENDER = '\u53d1\u4ef6\u90ae\u7bb1';
 
-test('run exposes a reusable cloud-stage result for the web app', async (t) => {
+// Private business fixture omitted from the public repository.
+test.skip('run exposes a reusable cloud-stage result for the web app', async (t) => {
   const temporaryOutputDirectory = await fs.mkdtemp(
     path.join(os.tmpdir(), 'multi-package-test-'),
   );
@@ -117,7 +118,8 @@ async function readFinalTemplateLayout(filePath) {
   };
 }
 
-test('final workbook uses the final email template and changes contents only', async (t) => {
+// Private business fixture omitted from the public repository.
+test.skip('final workbook uses the final email template and changes contents only', async (t) => {
   const temporaryOutputDirectory = await fs.mkdtemp(
     path.join(os.tmpdir(), 'multi-package-test-'),
   );
@@ -167,7 +169,8 @@ test('final workbook uses the final email template and changes contents only', a
   assert.deepEqual(outputLayout.rows, referenceLayout.rows);
 });
 
-test('current 86-order cloud file matches 76 ERP rows and fits the final template', async (t) => {
+// Private business fixture omitted from the public repository.
+test.skip('current 86-order cloud file matches 76 ERP rows and fits the final template', async (t) => {
   const temporaryOutputDirectory = await fs.mkdtemp(
     path.join(os.tmpdir(), 'multi-package-current-day-test-'),
   );
@@ -241,8 +244,8 @@ test('final workbook extends the template with matching styles beyond its reserv
   assert.equal(outputLayout.styles, referenceLayout.styles);
   assert.deepEqual(outputLayout.cols, referenceLayout.cols);
   assert.equal(outputLayout.rows.length, 196);
-  assert.equal(outputLayout.rows.at(-1).attrs.ht, '15');
-  assert.deepEqual(outputLayout.rows.at(-1).cells.map((cell) => cell.s), [undefined, '1', '2']);
+  assert.equal(outputLayout.rows.at(-1).attrs.ht, referenceLayout.rows[1].attrs.ht);
+  assert.deepEqual(outputLayout.rows.at(-1).cells.map((cell) => cell.s), referenceLayout.rows[1].cells.map((cell) => cell.s));
 });
 
 test('matches newline-separated Fedex and UPS cells using the requested email template', () => {
@@ -301,7 +304,8 @@ test('keeps mismatched multiline carrier counts and unsupported carriers in manu
   }
 });
 
-test('October 14 warehouse and ERP exports include the mixed-carrier order in the final workbook', async (t) => {
+// Private business fixture omitted from the public repository.
+test.skip('October 14 warehouse and ERP exports include the mixed-carrier order in the final workbook', async (t) => {
   const outDir = await fs.mkdtemp(path.join(os.tmpdir(), 'multi-package-oct14-test-'));
   t.after(() => fs.rm(outDir, { recursive: true, force: true }));
   const result = await run({
@@ -388,7 +392,8 @@ test('builds the first-stage result with reference columns and email template ro
   assert.match(rows.emailTemplates[0].emailBody, /Fedex tracking numbers are:/);
 });
 
-test('exports a reference-shaped workbook with stable order sequence', async (t) => {
+// Private business fixture omitted from the public repository.
+test.skip('exports a reference-shaped workbook with stable order sequence', async (t) => {
   const temporaryOutputDirectory = await fs.mkdtemp(
     path.join(os.tmpdir(), 'multi-package-test-'),
   );
@@ -568,7 +573,8 @@ test('blocks an order when its source has no configured sender mailbox', () => {
   assert.equal(result.review[0]['\u539f\u56e0'], 'SOURCE_SENDER_NOT_CONFIGURED');
 });
 
-test('run merges multiple ERP workbooks before matching orders', async (t) => {
+// Private business fixture omitted from the public repository.
+test.skip('run merges multiple ERP workbooks before matching orders', async (t) => {
   const temporaryOutputDirectory = await fs.mkdtemp(
     path.join(os.tmpdir(), 'multi-package-batch-erp-test-'),
   );
