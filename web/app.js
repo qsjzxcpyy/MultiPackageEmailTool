@@ -1,3 +1,7 @@
+import { mountMailPanel } from './mail.js';
+let mailPanel;
+function savedCollapse(key) { try { return localStorage.getItem(`multi-package-${key}-collapsed`) === 'true'; } catch { return false; } }
+function saveCollapse(key,value) { try { localStorage.setItem(`multi-package-${key}-collapsed`,String(value)); } catch {} }
 const state = {
   stage: 'idle',
   cloud: null,
@@ -5,8 +9,8 @@ const state = {
   cloudSourceFilter: '',
   resultSourceFilter: '',
   resultMode: 'sendable',
-  cloudListCollapsed: false,
-  resultListCollapsed: false,
+  cloudListCollapsed: savedCollapse('cloud'),
+  resultListCollapsed: savedCollapse('result'),
 };
 
 const MAX_ERP_FILES = 2;
@@ -135,7 +139,7 @@ function setStage(stage, stateName) {
     erp: '匹配已完成',
   };
   setText('#run-state', labels[stateName] || labels.idle);
-  const stageOrder = ['cloud', 'order-list', 'erp', 'result'];
+  const stageOrder = ['cloud', 'erp', 'result', 'mail'];
   const activeIndex = stageOrder.indexOf(stage);
   document.querySelectorAll('.stage-item').forEach((item) => {
     const active = item.dataset.stage === stage;
@@ -405,14 +409,13 @@ function setFileLabel(input, labelSelector, buttonSelector) {
 }
 
 function resetApp() {
+  mailPanel?.setData(null);
   state.stage = 'idle';
   state.cloud = null;
   state.erp = null;
   state.cloudSourceFilter = '';
   state.resultSourceFilter = '';
   state.resultMode = 'sendable';
-  state.cloudListCollapsed = false;
-  state.resultListCollapsed = false;
   $('#cloud-file').value = '';
   $('#erp-file').value = '';
   setText('#cloud-file-name', '未选择文件');
@@ -423,14 +426,12 @@ function resetApp() {
   $('#cloud-source-filter').value = '';
   $('#result-source-filter').value = '';
   setCloudCopyButton([]);
-  applyListCollapse('#cloud-table-wrap', '#cloud-list-toggle-button', false);
-  applyListCollapse('#result-table-wrap', '#result-list-toggle-button', false);
+  applyListCollapse('#cloud-table-wrap', '#cloud-list-toggle-button', state.cloudListCollapsed);
+  applyListCollapse('#result-table-wrap', '#result-list-toggle-button', state.resultListCollapsed);
   setCloudReady(false);
-  setDownload('#erp-order-list-download', '');
   setDownload('#final-download', '');
   setDownload('#review-download', '');
   setText('#cloud-state', '待处理');
-  setText('#order-list-state', '等待上一步');
   setText('#result-state', '锁定');
   setStage('cloud', 'idle');
   setError('');
@@ -445,13 +446,12 @@ async function handleCloudUpload() {
   setStatus('正在读取云仓文件并聚合多包裹订单…');
   try {
     const data = await upload('/api/cloud', file);
+    mailPanel?.setData(null);
     state.cloud = data;
     state.stage = 'cloud';
     renderCloud(data);
     setCloudReady(true);
-    setDownload('#erp-order-list-download', data.downloads?.erpOrderList);
     setText('#cloud-state', '已完成');
-    setText('#order-list-state', '可下载');
     setStage('erp', 'cloud');
     setStatus(`云仓处理完成：识别到 ${data.stats.multiPackageOrders} 个多包裹订单。`);
   } catch (error) {
@@ -472,6 +472,8 @@ async function handleErpUpload() {
     const data = await upload('/api/erp', files);
     state.stage = 'erp';
     renderResult(data);
+    mailPanel?.setData(data.mailBatch);
+    applyListCollapse('#cloud-table-wrap', '#cloud-list-toggle-button', state.cloudListCollapsed);
     setText('#erp-state', '已完成');
     setText('#result-state', '已生成');
     $('#result-stage').classList.remove('stage-panel-muted');
@@ -498,16 +500,19 @@ function setResultMode(mode) {
 }
 
 if (typeof document !== 'undefined') {
+  mailPanel = mountMailPanel();
   $('#cloud-file').addEventListener('change', (event) => setFileLabel(event.target, '#cloud-file-name', '#cloud-upload-button'));
   $('#erp-file').addEventListener('change', (event) => setFileLabel(event.target, '#erp-file-name', '#erp-upload-button'));
   $('#cloud-upload-button').addEventListener('click', handleCloudUpload);
   $('#cloud-copy-orders-button').addEventListener('click', handleCopyCloudOrders);
   $('#cloud-list-toggle-button').addEventListener('click', () => {
     state.cloudListCollapsed = !state.cloudListCollapsed;
+    saveCollapse('cloud',state.cloudListCollapsed);
     applyListCollapse('#cloud-table-wrap', '#cloud-list-toggle-button', state.cloudListCollapsed);
   });
   $('#result-list-toggle-button').addEventListener('click', () => {
     state.resultListCollapsed = !state.resultListCollapsed;
+    saveCollapse('result',state.resultListCollapsed);
     applyListCollapse('#result-table-wrap', '#result-list-toggle-button', state.resultListCollapsed);
   });
   $('#erp-upload-button').addEventListener('click', handleErpUpload);
@@ -523,9 +528,11 @@ if (typeof document !== 'undefined') {
   });
   $('#sendable-tab').addEventListener('click', () => setResultMode('sendable'));
   $('#review-tab').addEventListener('click', () => setResultMode('review'));
-  ['#erp-order-list-download', '#final-download', '#review-download'].forEach((selector) => {
+  ['#final-download', '#review-download'].forEach((selector) => {
     $(selector).addEventListener('click', (event) => downloadFrom(event.currentTarget));
   });
 
   setCloudReady(false);
+  applyListCollapse('#cloud-table-wrap','#cloud-list-toggle-button',state.cloudListCollapsed);
+  applyListCollapse('#result-table-wrap','#result-list-toggle-button',state.resultListCollapsed);
 }

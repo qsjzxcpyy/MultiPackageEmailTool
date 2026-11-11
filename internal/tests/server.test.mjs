@@ -8,17 +8,18 @@ import { fileURLToPath } from 'node:url';
 
 import { SpreadsheetFile, Workbook } from '@oai/artifact-tool';
 import { createApp, formatErrorMessage, resolvePort } from '../../server.mjs';
+import { createCurrentFixtures } from './synthetic-fixtures.mjs';
 
+import { createLegacyFixtures } from './public-fixtures.mjs';
+const legacyFixtures = await createLegacyFixtures();
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const cloudFixturePath = path.join(projectRoot, 'Drop Shipping Order List20260825203710.xlsx');
-const erpFixturePath = path.join(projectRoot, '推单前检查', 'order-1787646003.xlsx');
-const currentCloudFixturePath = path.join(projectRoot, '8月28-29推单多包裹', 'Drop Shipping Order List20260831000608.xlsx');
-const currentErpFixturePath = path.join(projectRoot, '8月28-29推单多包裹', 'order-1788160744.xlsx');
+const cloudFixturePath = legacyFixtures.cloud;
+const erpFixturePath = legacyFixtures.unmatchedErp;
 
 async function startApp(t, options = {}) {
   const temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'multi-package-server-test-'));
-  const server = createApp({ rootDir: appRoot, tempDir: temporaryRoot, ...options });
+  const server = createApp({ rootDir: appRoot, tempDir: temporaryRoot, mailDataDir:path.join(temporaryRoot, 'history'), ...options });
   await new Promise((resolve, reject) => {
     server.once('error', reject);
     server.listen(0, '127.0.0.1', resolve);
@@ -50,7 +51,7 @@ test('health endpoint reports the local service', async (t) => {
   assert.deepEqual(await response.json(), {
     ok: true,
     stage: 'idle',
-    version: '20261015-multiline-carriers',
+    version: '20261110-mail-ui-v2',
   });
 });
 
@@ -77,8 +78,7 @@ test('static application routes serve the browser workspace', async (t) => {
   }
 });
 
-// Private business fixture omitted from the public repository.
-test.skip('shutdown removes the current run directory', async (t) => {
+test('shutdown removes the current run directory', async (t) => {
   const temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'multi-package-shutdown-test-'));
   const server = createApp({ rootDir: appRoot, tempDir: temporaryRoot });
   await new Promise((resolve, reject) => {
@@ -95,8 +95,7 @@ test.skip('shutdown removes the current run directory', async (t) => {
   t.after(() => fs.rm(temporaryRoot, { recursive: true, force: true }));
 });
 
-// Private business fixture omitted from the public repository.
-test.skip('cloud upload returns aggregated order preview and ERP download', async (t) => {
+test('cloud upload returns aggregated order preview and ERP download', async (t) => {
   const { baseUrl } = await startApp(t);
 
   const response = await uploadFile(`${baseUrl}/api/cloud`, cloudFixturePath);
@@ -120,8 +119,7 @@ test.skip('cloud upload returns aggregated order preview and ERP download', asyn
   assert.match(body.downloads.erpOrderList, /\/api\/download\//);
 });
 
-// Private business fixture omitted from the public repository.
-test.skip('ERP upload before cloud upload is rejected', async (t) => {
+test('ERP upload before cloud upload is rejected', async (t) => {
   const { baseUrl } = await startApp(t);
 
   const response = await uploadFile(`${baseUrl}/api/erp`, erpFixturePath);
@@ -135,8 +133,7 @@ test.skip('ERP upload before cloud upload is rejected', async (t) => {
   });
 });
 
-// Private business fixture omitted from the public repository.
-test.skip('current unmatched ERP fixture produces no sendable rows', async (t) => {
+test('current unmatched ERP fixture produces no sendable rows', async (t) => {
   const { baseUrl } = await startApp(t);
   await uploadFile(`${baseUrl}/api/cloud`, cloudFixturePath);
 
@@ -210,8 +207,7 @@ test('cloud upload rejects a request larger than the configured limit', async (t
   });
 });
 
-// Private business fixture omitted from the public repository.
-test.skip('registered downloads are sent as attachments', async (t) => {
+test('registered downloads are sent as attachments', async (t) => {
   const { baseUrl } = await startApp(t);
   const cloudResponse = await uploadFile(`${baseUrl}/api/cloud`, cloudFixturePath);
   const cloudBody = await cloudResponse.json();
@@ -223,8 +219,7 @@ test.skip('registered downloads are sent as attachments', async (t) => {
   assert.equal(response.headers.get('content-type'), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 });
 
-// Private business fixture omitted from the public repository.
-test.skip('ERP upload accepts two files and merges their order records', async (t) => {
+test('ERP upload accepts two files and merges their order records', async (t) => {
   const { baseUrl } = await startApp(t);
   const temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'multi-package-batch-upload-'));
   t.after(() => fs.rm(temporaryRoot, { recursive: true, force: true }));
@@ -265,22 +260,23 @@ test.skip('ERP upload accepts two files and merges their order records', async (
   ]);
 });
 
-// Private business fixture omitted from the public repository.
-test.skip('current-day ERP upload returns the matched result instead of failing on template capacity', async (t) => {
-  const { baseUrl } = await startApp(t);
+test('current-day ERP upload returns the matched result instead of failing on template capacity', async (t) => {
+  const { baseUrl, temporaryRoot } = await startApp(t);
+  const fixtures = await createCurrentFixtures(temporaryRoot);
 
-  const cloudResponse = await uploadFile(`${baseUrl}/api/cloud`, currentCloudFixturePath);
+  const cloudResponse = await uploadFile(`${baseUrl}/api/cloud`, fixtures.source);
   assert.equal(cloudResponse.status, 200);
   const cloudBody = await cloudResponse.json();
   assert.equal(cloudBody.stats.multiPackageOrders, 86);
 
-  const erpResponse = await uploadFile(`${baseUrl}/api/erp`, currentErpFixturePath);
+  const erpResponse = await uploadFile(`${baseUrl}/api/erp`, fixtures.erp);
   const erpBody = await erpResponse.json();
 
   assert.equal(erpResponse.status, 200);
   assert.equal(erpBody.stats.sendableRows, 76);
   assert.equal(erpBody.stats.reviewRows, 10);
   assert.equal(erpBody.sendable.length, 76);
+  assert.equal(erpBody.mailBatch.counts.pending, 76);
   assert.equal(erpBody.review.length, 10);
   assert.match(erpBody.downloads.final, /\/api\/download\//);
 });

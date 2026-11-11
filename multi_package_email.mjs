@@ -166,7 +166,7 @@ export function buildEmailBody({ order, carrier, trackingNumbers, trackingGroups
   lines.push(
     'Please wait for all the packages to arrive (may arrive separately)',
     'Warmest Regards',
-    'Demo Support',
+    'Example Sender',
   );
   return lines.join('\n');
 }

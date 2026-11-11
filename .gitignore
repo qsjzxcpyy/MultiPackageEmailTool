@@ -31,3 +31,14 @@ project.private.config.json
 # Synthetic public templates
 !/Drop Shipping Order List20260825003315.xlsx
 !/发邮件8.17-1.xlsx
+
+# Local credentials, journals, worker build products and private exports
+data/
+授权码*.txt
+authorization-*.txt
+credentials*.txt
+*.log
+build/
+*.spec
+internal/worker/dist/
+internal/worker/build/

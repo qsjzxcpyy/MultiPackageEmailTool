@@ -33,17 +33,17 @@
           <span class="stage-number">01</span>
           <div><strong>上传云仓文件</strong><small>识别多包裹订单</small></div>
         </li>
-        <li class="stage-item" data-stage="order-list">
-          <span class="stage-number">02</span>
-          <div><strong>下载 ERP 订单号</strong><small>去重后的订单清单</small></div>
-        </li>
         <li class="stage-item is-locked" data-stage="erp">
-          <span class="stage-number">03</span>
+          <span class="stage-number">02</span>
           <div><strong>上传 ERP 文件</strong><small>匹配邮箱与邮件内容</small></div>
         </li>
         <li class="stage-item is-locked" data-stage="result">
-          <span class="stage-number">04</span>
+          <span class="stage-number">03</span>
           <div><strong>查看结果</strong><small>下载发送表与复核表</small></div>
+        </li>
+        <li class="stage-item is-locked" data-stage="mail">
+          <span class="stage-number">04</span>
+          <div><strong><a href="#mail-stage">发送邮件</a></strong><small>逐条发送与结果统计</small></div>
         </li>
       </ol>
       <div class="rail-note">
@@ -55,8 +55,8 @@
     <section class="workspace" aria-label="多包裹邮件工作区">
       <div class="workspace-heading">
         <div>
-          <p class="eyebrow">ORDER OPERATIONS / 2026-08-27</p>
-          <h2>从订单记录到可发送 Excel</h2>
+          <p class="eyebrow">ORDER OPERATIONS</p>
+          <h2>从订单记录到邮件发送</h2>
         </div>
         <span class="run-state" id="run-state">等待云仓文件</span>
       </div>
@@ -96,19 +96,9 @@
         </div>
       </section>
 
-      <section class="stage-panel stage-panel-muted" id="order-list-stage" aria-labelledby="order-list-title">
-        <div class="panel-heading">
-          <div class="heading-index">02</div>
-          <div><p class="eyebrow">HANDOFF / ERP</p><h3 id="order-list-title">下载 ERP 订单号</h3></div>
-          <span class="panel-state" id="order-list-state">等待上一步</span>
-        </div>
-        <p class="panel-copy">使用这份去重后的订单号清单，从 ERP 手动下载包含邮箱信息的记录。</p>
-        <button class="button button-secondary download-button" id="erp-order-list-download" type="button" disabled>下载 ERP 订单号.xlsx</button>
-      </section>
-
       <section class="stage-panel stage-panel-muted" id="erp-stage" aria-labelledby="erp-title" aria-disabled="true">
         <div class="panel-heading">
-          <div class="heading-index">03</div>
+          <div class="heading-index">02</div>
           <div><p class="eyebrow">SOURCE / ERP EXPORT</p><h3 id="erp-title">上传 ERP 文件</h3></div>
           <span class="panel-state" id="erp-state">锁定</span>
         </div>
@@ -125,7 +115,7 @@
 
       <section class="stage-panel stage-panel-muted" id="result-stage" aria-labelledby="result-title" aria-disabled="true">
         <div class="panel-heading">
-          <div class="heading-index">04</div>
+          <div class="heading-index">03</div>
           <div><p class="eyebrow">OUTPUT / REVIEW</p><h3 id="result-title">查看结果</h3></div>
           <span class="panel-state" id="result-state">锁定</span>
         </div>
@@ -152,7 +142,46 @@
         </div>
       </section>
 
-      <footer class="workspace-footer"><span>本地处理 · 不连接云仓、ERP 或邮箱服务</span><span>发件邮箱按订单来源自动匹配</span></footer>
+      <section class="stage-panel" id="mail-stage" aria-labelledby="mail-title">
+        <div class="panel-heading">
+          <div class="heading-index">04</div>
+          <div><p class="eyebrow">SEND / EMAIL</p><h3 id="mail-title">发送邮件</h3></div>
+          <span class="panel-state" id="mail-phase">等待生成最终邮件</span>
+        </div>
+        <p class="panel-copy">生成最终邮件后，点击发送。每处理一封邮件，下方出现一条记录；人工复核订单不发送。</p>
+        <div class="mail-send-actions">
+          <div class="mail-authorization" id="mail-authorization"><span class="mail-auth-check" aria-hidden="true">✓</span><div><strong id="mail-auth-name">正在读取默认授权码…</strong><small id="mail-auth-description"></small></div></div>
+          <div class="mail-action-buttons">
+            <label class="button button-secondary mail-auth-change" id="mail-auth-change" for="mail-auth-file"><span id="mail-auth-change-label">更换授权码</span><input id="mail-auth-file" type="file" accept=".txt,text/plain"></label>
+            <button class="button button-primary" id="mail-send-button" type="button" disabled>发送邮件</button>
+          </div>
+        </div>
+        <div class="message message-status" id="mail-message" role="status" aria-live="polite" hidden></div>
+        <div class="message message-error" id="mail-task-error" role="alert" hidden></div>
+        <div class="cloud-output mail-output">
+          <div class="stats-grid" id="mail-stats" aria-label="发送统计">
+            <div class="stat-card stat-blue"><strong id="mail-count-total">0</strong><span>邮件总数</span></div>
+            <div class="stat-card stat-green"><strong id="mail-count-sent">0</strong><span>成功</span></div>
+            <div class="stat-card"><strong id="mail-count-failed">0</strong><span>失败</span></div>
+            <div class="stat-card stat-amber"><strong id="mail-count-uncertain">0</strong><span>待核对</span></div>
+          </div>
+          <div class="mail-progress-row"><progress id="mail-progress" value="0" max="1" aria-label="邮件处理进度"></progress><span id="mail-progress-label">等待生成最终邮件数据</span></div>
+          <div class="mail-activity" id="mail-activity" role="status" aria-live="polite"><span class="mail-activity-dot" aria-hidden="true"></span><span id="mail-activity-text">生成后可直接发送</span></div>
+          <div class="output-toolbar">
+          <div><p class="eyebrow">RECORDS</p><h4>发送记录</h4></div>
+          <div class="toolbar-controls">
+            <button class="button button-quiet list-toggle-button" id="mail-list-toggle-button" type="button" aria-expanded="true" aria-controls="mail-table-wrap">折叠订单列表</button>
+            <label class="filter-box" for="mail-status-filter"><span>状态</span><select id="mail-status-filter"><option value="">全部状态</option><option value="unsuccessful">未成功</option><option value="failed">失败</option><option value="uncertain">待核对</option><option value="sent">成功</option><option value="sending">发送中</option></select></label>
+            <label class="filter-box" for="mail-source-filter"><span>来源</span><select id="mail-source-filter"><option value="">全部来源</option></select></label>
+            <label class="search-box" for="mail-search"><span aria-hidden="true">⌕</span><input id="mail-search" type="search" placeholder="搜索订单号、邮箱或原因" autocomplete="off"></label>
+            <span class="row-count" id="mail-row-count">0 条</span>
+          </div>
+        </div>
+          <div class="table-wrap" id="mail-table-wrap"><table class="data-table mail-table"><thead><tr><th>订单号</th><th>来源</th><th>发送状态</th><th>邮件内容</th><th>结果说明</th></tr></thead><tbody id="mail-records"></tbody></table></div>
+          <p class="mail-status-note">成功表示发件服务器已接收；待核对请先检查发件箱。已成功和待核对的邮件不会重复发送。</p>
+        </div>
+      </section>
+      <footer class="workspace-footer"><span>文件在本机处理 · 点击发送后连接邮箱服务</span><span>发件邮箱按订单来源自动匹配</span></footer>
     </section>
   </main>
   <script type="module" src="/app.js"></script>

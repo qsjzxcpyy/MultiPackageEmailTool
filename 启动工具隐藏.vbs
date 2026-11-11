@@ -20,7 +20,7 @@ End If
 
 serverPath = fso.BuildPath(appDir, "server.mjs")
 appPort = "8788"
-appVersion = "20261015-multiline-carriers"
+appVersion = "20261110-mail-ui-v2"
 shell.Environment("Process")("PORT") = appPort
 url = "http://127.0.0.1:" & appPort
 shell.CurrentDirectory = appDir

@@ -4,10 +4,10 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 
-ROOT = Path(__file__).resolve().parents[3]
-CLOUD_FILE = Path(r"C:\Users\Administrator.DESKTOP-OV0JDHK\Desktop\多包裹\8月26推单多包裹\Drop Shipping Order List20260826232408.xlsx")
-ERP_FILE = Path(r"C:\Users\Administrator.DESKTOP-OV0JDHK\Desktop\多包裹\8月26推单多包裹\order-1787822395.xlsx")
-BASE_URL = os.environ.get("BASE_URL", "http://127.0.0.1:8788")
+ROOT = Path(__file__).resolve().parents[2]
+CLOUD_FILE = Path(os.environ["TEST_CLOUD_FILE"])
+ERP_FILE = Path(os.environ["TEST_ERP_FILE"])
+BASE_URL = os.environ.get("BASE_URL", "http://127.0.0.1:18789")
 
 
 def main():
@@ -73,7 +73,7 @@ def main():
             for row in page.locator("#result-table-wrap tbody tr").all()
         ]
         page.screenshot(
-            path=str(ROOT / "MultiPackageEmailTool" / "internal" / "checks" / "latest-result-preview.png"),
+            path=str(ROOT / "internal" / "checks" / "latest-result-preview.png"),
             full_page=True,
         )
 

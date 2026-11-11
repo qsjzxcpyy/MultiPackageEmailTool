@@ -6,8 +6,10 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 import { buildEmailBodyForPreview, run } from './multi_package_email.mjs';
+import { MailJobs } from './mail_jobs.mjs';
+import { MailCredentials } from './mail_credentials.mjs';
 
-export const APP_VERSION = '20261015-multiline-carriers';
+export const APP_VERSION = '20261110-mail-ui-v2';
 export function resolvePort({ argv = [], envPort = process.env.PORT } = {}) {
   const portIndex = argv.indexOf('--port');
   const requestedValue = portIndex >= 0 ? argv[portIndex + 1] : (envPort ?? 8787);
@@ -22,6 +24,7 @@ const STATIC_FILES = new Map([
   ['/', { file: 'index.html', contentType: 'text/html; charset=utf-8' }],
   ['/app.js', { file: 'app.js', contentType: 'text/javascript; charset=utf-8' }],
   ['/styles.css', { file: 'styles.css', contentType: 'text/css; charset=utf-8' }],
+  ['/mail.js', { file: 'mail.js', contentType: 'text/javascript; charset=utf-8' }],
 ]);
 
 class HttpError extends Error {
@@ -228,9 +231,14 @@ async function sendStaticFile(response, rootDir, staticFile) {
   }
 }
 
-export function createApp({ rootDir = '.', maxUploadBytes = DEFAULT_MAX_UPLOAD_BYTES, tempDir = os.tmpdir() } = {}) {
+export function createApp({ rootDir = '.', maxUploadBytes = DEFAULT_MAX_UPLOAD_BYTES, tempDir = os.tmpdir(), mailDataDir, mailCredentialsDir, defaultCredentialFiles, launchWorker } = {}) {
   const resolvedRootDir = path.resolve(rootDir);
   const resolvedTempDir = path.resolve(tempDir);
+  const mailToken = randomUUID();
+  const mailJobs = new MailJobs({dataDir:mailDataDir ?? path.join(resolvedRootDir, 'data', 'mail-history'),
+    workerPath:path.join(resolvedRootDir, 'internal', 'bin', 'mail_worker.exe'), launchWorker});
+  const mailCredentials = new MailCredentials({dataDir:mailCredentialsDir ?? path.join(resolvedRootDir,'data','mail-settings'),
+    defaultFiles:defaultCredentialFiles ?? [path.join(resolvedRootDir,'授权码.txt'),path.resolve(resolvedRootDir,'../自动发邮件/授权码.txt')]});
   const state = {
     stage: 'idle',
     runDir: null,
@@ -303,6 +311,7 @@ export function createApp({ rootDir = '.', maxUploadBytes = DEFAULT_MAX_UPLOAD_B
       erpPaths.push(erpPath);
     }
     const result = await run({ source: state.cloudPath, erp: erpPaths, outDir: state.runDir });
+    const mailBatch = result.sendable.length ? await mailJobs.create(result.sendable, result.finalPath) : null;
     state.stage = 'erp';
     const downloads = registerDownloads({
       pending: result.pendingPath,
@@ -319,6 +328,7 @@ export function createApp({ rootDir = '.', maxUploadBytes = DEFAULT_MAX_UPLOAD_B
       sendable: result.sendable,
       review: result.review,
       downloads,
+      mailBatch,
     });
   }
 
@@ -355,6 +365,51 @@ export function createApp({ rootDir = '.', maxUploadBytes = DEFAULT_MAX_UPLOAD_B
   const server = http.createServer(async (request, response) => {
     try {
       const url = new URL(request.url, 'http://127.0.0.1');
+      if (url.pathname.startsWith('/api/mail/')) {
+        const localPort = server.address()?.port;
+        if (![ `127.0.0.1:${localPort}`, `localhost:${localPort}` ].includes(request.headers.host)) {
+          throw new HttpError(403, 'FORBIDDEN_HOST', '请通过本机地址打开工具。');
+        }
+        const origin = request.headers.origin;
+        if (origin && origin !== `http://${request.headers.host}`) {
+          throw new HttpError(403, 'FORBIDDEN_ORIGIN', '只允许从本地工具网页操作发送记录。');
+        }
+        response.setHeader('Cache-Control', 'no-store');
+        if (request.method === 'GET' && url.pathname === '/api/mail/session') {
+          sendJson(response, 200, {token:mailToken}); return;
+        }
+        if (url.pathname === '/api/mail/credentials') {
+          if (request.method === 'GET') { sendJson(response,200,await mailCredentials.status()); return; }
+          if (request.method === 'POST') {
+            if (request.headers['x-mail-token'] !== mailToken) throw new HttpError(403, 'INVALID_SEND_TOKEN', '请刷新本地网页后再操作。');
+            let filename;
+            try { filename = decodeURIComponent(request.headers['x-filename'] || '授权码.txt'); }
+            catch { throw new HttpError(400,'INVALID_FILENAME','无法读取授权码文件名。'); }
+            if (path.extname(filename).toLowerCase() !== '.txt') throw new HttpError(415,'UNSUPPORTED_FILE_TYPE','请选择授权码 TXT 文件。');
+            const raw = await readUpload(request,1024 * 1024);
+            try { sendJson(response,200,await mailCredentials.save(raw,filename)); }
+            catch { throw new HttpError(400,'INVALID_CREDENTIALS','授权码文件格式不正确，请使用每行“发件邮箱----授权码”，原文件未更改。'); }
+            return;
+          }
+        }
+        if (request.method === 'GET' && url.pathname === '/api/mail/batches') {
+          sendJson(response, 200, {batches:await mailJobs.list()}); return;
+        }
+        const match = url.pathname.match(/^\/api\/mail\/batches\/([a-f0-9]{64})(\/send)?$/);
+        if (match && request.method === 'GET' && !match[2]) {
+          sendJson(response, 200, await mailJobs.get(match[1])); return;
+        }
+        if (match && request.method === 'POST' && match[2]) {
+          if (request.headers['x-mail-token'] !== mailToken) throw new HttpError(403, 'INVALID_SEND_TOKEN', '请刷新本地网页后再发送。');
+          const uploaded = await readUpload(request, 1024 * 1024);
+          try {
+            const credentials = uploaded.length ? uploaded : await mailCredentials.read();
+            sendJson(response, 202, await mailJobs.start(match[1], credentials));
+          }
+          catch (error) { throw new HttpError(409, 'SEND_NOT_STARTED', error.message); }
+          return;
+        }
+      }
       if (request.method === 'GET' && url.pathname === '/api/health') {
         sendJson(response, 200, { ok: true, stage: state.stage, version: APP_VERSION });
         return;
@@ -389,6 +444,7 @@ export function createApp({ rootDir = '.', maxUploadBytes = DEFAULT_MAX_UPLOAD_B
       });
     }
     await operationQueue;
+    await mailJobs.waitForIdle();
     await cleanupPromise;
     await clearRun();
   };

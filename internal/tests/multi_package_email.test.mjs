@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { createCurrentFixtures } from './synthetic-fixtures.mjs';
 import { fileURLToPath } from 'node:url';
 import JSZip from 'jszip';
 import { xml2js } from 'xml-js';
@@ -19,20 +20,19 @@ import {
   run,
 } from '../../multi_package_email.mjs';
 
+import { createLegacyFixtures } from './public-fixtures.mjs';
+const legacyFixtures = await createLegacyFixtures();
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const cloudFixture = path.join(projectRoot, 'Drop Shipping Order List20260825203710.xlsx');
+const cloudFixture = legacyFixtures.cloud;
 const finalTemplateFixture = path.join(projectRoot, '发邮件8.17-1.xlsx');
 const templateFixture = path.join(projectRoot, 'Drop Shipping Order List20260825003315.xlsx');
-const currentCloudFixture = path.join(projectRoot, '8月28-29推单多包裹', 'Drop Shipping Order List20260831000608.xlsx');
-const currentErpFixture = path.join(projectRoot, '8月28-29推单多包裹', 'order-1788160744.xlsx');
 
 const ORDER = '\u8ba2\u5355\u53f7';
 const RECIPIENT = '\u6536\u4ef6\u90ae\u7bb1';
 const BODY = '\u90ae\u4ef6\u5185\u5bb9';
 const SENDER = '\u53d1\u4ef6\u90ae\u7bb1';
 
-// Private business fixture omitted from the public repository.
-test.skip('run exposes a reusable cloud-stage result for the web app', async (t) => {
+test('run exposes a reusable cloud-stage result for the web app', async (t) => {
   const temporaryOutputDirectory = await fs.mkdtemp(
     path.join(os.tmpdir(), 'multi-package-test-'),
   );
@@ -91,7 +91,7 @@ test('cloud processing builds mixed-carrier email groups', async (t) => {
       '1Z9900000000000001\n' +
       'Please wait for all the packages to arrive (may arrive separately)\n' +
       'Warmest Regards\n' +
-      'Demo Support',
+      'Example Sender',
   );
   assert.equal((await fs.stat(result.pendingPath)).isFile(), true);
 });
@@ -105,7 +105,8 @@ async function readFinalTemplateLayout(filePath) {
   const rows = (child(root, 'sheetData').elements ?? [])
     .filter((row) => row.type === 'element' && row.name === 'row')
     .map((row) => ({
-      attrs: row.attributes,
+      // spans is a serializer hint, not part of the row's visual formatting.
+      attrs: Object.fromEntries(Object.entries(row.attributes ?? {}).filter(([name]) => name !== 'spans')),
       cells: (row.elements ?? [])
         .filter((cell) => cell.type === 'element' && cell.name === 'c')
         .map((cell) => ({ r: cell.attributes?.r, s: cell.attributes?.s })),
@@ -118,8 +119,7 @@ async function readFinalTemplateLayout(filePath) {
   };
 }
 
-// Private business fixture omitted from the public repository.
-test.skip('final workbook uses the final email template and changes contents only', async (t) => {
+test('final workbook uses the final email template and changes contents only', async (t) => {
   const temporaryOutputDirectory = await fs.mkdtemp(
     path.join(os.tmpdir(), 'multi-package-test-'),
   );
@@ -169,16 +169,16 @@ test.skip('final workbook uses the final email template and changes contents onl
   assert.deepEqual(outputLayout.rows, referenceLayout.rows);
 });
 
-// Private business fixture omitted from the public repository.
-test.skip('current 86-order cloud file matches 76 ERP rows and fits the final template', async (t) => {
+test('current 86-order cloud file matches 76 ERP rows and fits the final template', async (t) => {
   const temporaryOutputDirectory = await fs.mkdtemp(
     path.join(os.tmpdir(), 'multi-package-current-day-test-'),
   );
   t.after(() => fs.rm(temporaryOutputDirectory, { recursive: true, force: true }));
 
+  const fixtures = await createCurrentFixtures(temporaryOutputDirectory);
   const result = await run({
-    source: currentCloudFixture,
-    erp: currentErpFixture,
+    source: fixtures.source,
+    erp: fixtures.erp,
     outDir: temporaryOutputDirectory,
   });
 
@@ -244,8 +244,8 @@ test('final workbook extends the template with matching styles beyond its reserv
   assert.equal(outputLayout.styles, referenceLayout.styles);
   assert.deepEqual(outputLayout.cols, referenceLayout.cols);
   assert.equal(outputLayout.rows.length, 196);
-  assert.equal(outputLayout.rows.at(-1).attrs.ht, referenceLayout.rows[1].attrs.ht);
-  assert.deepEqual(outputLayout.rows.at(-1).cells.map((cell) => cell.s), referenceLayout.rows[1].cells.map((cell) => cell.s));
+  assert.equal(outputLayout.rows.at(-1).attrs.ht, referenceLayout.rows.at(-1).attrs.ht);
+  assert.deepEqual(outputLayout.rows.at(-1).cells.map((cell) => cell.s), referenceLayout.rows.at(-1).cells.map((cell) => cell.s));
 });
 
 test('matches newline-separated Fedex and UPS cells using the requested email template', () => {
@@ -271,7 +271,7 @@ test('matches newline-separated Fedex and UPS cells using the requested email te
     'Fedex tracking numbers are:\n990000000013\n' +
     'UPS tracking numbers are:\n1Z9900000000000004\n' +
     'Please wait for all the packages to arrive (may arrive separately)\n' +
-    'Warmest Regards\nDemo Support');
+    'Warmest Regards\nExample Sender');
 });
 
 test('pairs multiline carriers by position and merges repeated carriers and tracking numbers', () => {
@@ -304,13 +304,12 @@ test('keeps mismatched multiline carrier counts and unsupported carriers in manu
   }
 });
 
-// Private business fixture omitted from the public repository.
-test.skip('October 14 warehouse and ERP exports include the mixed-carrier order in the final workbook', async (t) => {
+test('synthetic mixed-carrier exports include the order in the final workbook', async (t) => {
   const outDir = await fs.mkdtemp(path.join(os.tmpdir(), 'multi-package-oct14-test-'));
   t.after(() => fs.rm(outDir, { recursive: true, force: true }));
   const result = await run({
-    source: path.join(projectRoot, '10\u670814\u63a8\u5355\u591a\u5305\u88f9', 'Drop Shipping Order List20261014232047.xlsx'),
-    erp: path.join(projectRoot, '10\u670814\u63a8\u5355\u591a\u5305\u88f9', 'order-1792046129.xlsx'),
+    source: legacyFixtures.mixedCloud,
+    erp: legacyFixtures.mixedErp,
     outDir,
   });
   assert.equal(result.orders.length, 27);
@@ -392,8 +391,7 @@ test('builds the first-stage result with reference columns and email template ro
   assert.match(rows.emailTemplates[0].emailBody, /Fedex tracking numbers are:/);
 });
 
-// Private business fixture omitted from the public repository.
-test.skip('exports a reference-shaped workbook with stable order sequence', async (t) => {
+test('exports a reference-shaped workbook with stable order sequence', async (t) => {
   const temporaryOutputDirectory = await fs.mkdtemp(
     path.join(os.tmpdir(), 'multi-package-test-'),
   );
@@ -471,7 +469,7 @@ test('builds the exact Fedex and UPS email variants', () => {
       '990000000005\n' +
       'Please wait for all the packages to arrive (may arrive separately)\n' +
       'Warmest Regards\n' +
-      'Demo Support',
+      'Example Sender',
   );
 
   assert.match(
@@ -573,8 +571,7 @@ test('blocks an order when its source has no configured sender mailbox', () => {
   assert.equal(result.review[0]['\u539f\u56e0'], 'SOURCE_SENDER_NOT_CONFIGURED');
 });
 
-// Private business fixture omitted from the public repository.
-test.skip('run merges multiple ERP workbooks before matching orders', async (t) => {
+test('run merges multiple ERP workbooks before matching orders', async (t) => {
   const temporaryOutputDirectory = await fs.mkdtemp(
     path.join(os.tmpdir(), 'multi-package-batch-erp-test-'),
   );
